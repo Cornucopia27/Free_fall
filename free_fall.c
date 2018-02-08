@@ -12,6 +12,9 @@
 #include "fsl_pit.h"
 #include "fsl_i2c.h"
 
+#define BLUE_RED_LED_PORT PORTB
+#define RED_LED_PIN 22
+
 static bool g_MasterCompletionFlag = false;
 
 static void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle,
@@ -44,6 +47,22 @@ void I2C_common_init()
 	i2c_master_handle_t g_m_handle; //handle created for the callback
 	I2C_MasterTransferCreateHandle(I2C0, &g_m_handle,
 	        i2c_master_callback, NULL);
+}
+
+void Red_Led_init()
+{
+	CLOCK_EnableClock(kCLOCK_PortB);
+
+	port_pin_config_t config_led =
+	{ kPORT_PullDisable, kPORT_SlowSlewRate, kPORT_PassiveFilterDisable,
+			kPORT_OpenDrainDisable, kPORT_LowDriveStrength, kPORT_MuxAsGpio,
+			kPORT_UnlockRegister, };
+
+	PORT_SetPinConfig(BLUE_RED_LED_PORT, RED_LED_PIN, &config_led);
+
+	gpio_pin_config_t led_config_gpio =
+	{ kGPIO_DigitalOutput, 1 };
+	GPIO_PinInit(GPIOB, RED_LED_PIN, &led_config_gpio);
 }
 
 

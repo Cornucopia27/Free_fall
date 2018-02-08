@@ -65,6 +65,18 @@ void Red_Led_init()
 	GPIO_PinInit(GPIOB, RED_LED_PIN, &led_config_gpio);
 }
 
+void Pit_init()
+{
+	pit_config_t Pit_config;
+	PIT_GetDefaultConfig(&Pit_config);
+	CLOCK_EnableClock(kCLOCK_Pit0);
+	PIT_Init(PIT, &Pit_config);
+	uint32_t period = 1;
+	PIT_SetTimerPeriod(PIT, kPIT_Chnl_0, period*CLOCK_GetBusClkFreq());
+	PIT_EnableInterrupts(PIT, kPIT_Chnl_0, kPIT_TimerInterruptEnable);
+	EnableIRQ(PIT0_IRQn);
+	PIT_StartTimer(PIT, kPIT_Chnl_0);
+}
 
 int main(void)
 {

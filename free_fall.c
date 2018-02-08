@@ -16,6 +16,13 @@
 #define RED_LED_PIN 22
 
 static bool g_MasterCompletionFlag = false;
+static i2c_master_transfer_t masterXfer;
+static i2c_master_handle_t g_m_handle; //handle created for the callback
+
+void PIT0_IRQHandler()
+{
+	PIT_ClearStatusFlags(PIT, kPIT_Chnl_0, kPIT_TimerFlag);
+}
 
 static void i2c_master_callback(I2C_Type *base, i2c_master_handle_t *handle,
         status_t status, void * userData)
@@ -44,7 +51,6 @@ void I2C_common_init()
 	masterConfig.baudRate_Bps = 100000;
 	I2C_MasterInit(I2C0, &masterConfig, CLOCK_GetFreq(kCLOCK_BusClk));
 
-	i2c_master_handle_t g_m_handle; //handle created for the callback
 	I2C_MasterTransferCreateHandle(I2C0, &g_m_handle,
 	        i2c_master_callback, NULL);
 }
@@ -65,7 +71,7 @@ void Red_Led_init()
 	GPIO_PinInit(GPIOB, RED_LED_PIN, &led_config_gpio);
 }
 
-void Pit_init()
+void Pit_common_init()
 {
 	pit_config_t Pit_config;
 	PIT_GetDefaultConfig(&Pit_config);
@@ -78,51 +84,9 @@ void Pit_init()
 	PIT_StartTimer(PIT, kPIT_Chnl_0);
 }
 
-int main(void)
+void IMU_accelerometer_init()
 {
-
-	/* Init board hardware. */
-	BOARD_InitBootPins();
-	BOARD_InitBootClocks();
-	BOARD_InitBootPeripherals();
-	/* Init FSL debug console. */
-	BOARD_InitDebugConsole();
-
-	i2c_master_transfer_t masterXfer;
-
-
 	uint8_t data_buffer = 0x01;
-
-#if 0
-	masterXfer.slaveAddress = 0x1D;
-	masterXfer.direction = kI2C_Write;
-	masterXfer.subaddress = 0;
-	masterXfer.subaddressSize = 0;
-	masterXfer.data = &data_buffer;
-	masterXfer.dataSize = 1;
-	masterXfer.flags = kI2C_TransferNoStopFlag;
-
-	I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle,
-	        &masterXfer);
-	while (!g_MasterCompletionFlag){}
-	g_MasterCompletionFlag = false;
-
-	uint8_t read_data;
-
-	masterXfer.slaveAddress = 0x1D;
-	masterXfer.direction = kI2C_Read;
-	masterXfer.subaddress = 0;
-	masterXfer.subaddressSize = 0;
-	masterXfer.data = &read_data;
-	masterXfer.dataSize = 1;
-	masterXfer.flags = kI2C_TransferRepeatedStartFlag;
-
-	I2C_MasterTransferNonBlocking(I2C0, &g_m_handle,
-	        &masterXfer);
-	while (!g_MasterCompletionFlag){}
-	g_MasterCompletionFlag = false;
-#else
-
 	masterXfer.slaveAddress = 0x1D;
 	masterXfer.direction = kI2C_Write;
 	masterXfer.subaddress = 0x2A;
@@ -135,31 +99,36 @@ int main(void)
 	        &masterXfer);
 	while (!g_MasterCompletionFlag){}
 	g_MasterCompletionFlag = false;
+}
 
-#endif
-	/* Force the counter to be placed into memory. */
-	volatile static int i = 0;
+void Accelerometer_measures()
+{
 	uint8_t buffer[6];
 	int16_t accelerometer[3];
-	/* Enter an infinite loop, just incrementing a counter. */
-	while (1)
+
+	masterXfer.slaveAddress = 0x1D;
+	masterXfer.direction = kI2C_Read;
+	masterXfer.subaddress = 0x01;
+	masterXfer.subaddressSize = 1;
+	masterXfer.data = buffer;
+	masterXfer.dataSize = 6;
+	masterXfer.flags = kI2C_TransferDefaultFlag;
+
+	I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle,
+			&masterXfer);
+	while (!g_MasterCompletionFlag)
 	{
-		masterXfer.slaveAddress = 0x1D;
-		masterXfer.direction = kI2C_Read;
-		masterXfer.subaddress = 0x01;
-		masterXfer.subaddressSize = 1;
-		masterXfer.data = buffer;
-		masterXfer.dataSize = 6;
-		masterXfer.flags = kI2C_TransferDefaultFlag;
-
-		I2C_MasterTransferNonBlocking(I2C0,  &g_m_handle,
-				&masterXfer);
-		while (!g_MasterCompletionFlag){}
-		g_MasterCompletionFlag = false;
-
-		accelerometer[0] = buffer[0]<<8 | buffer[1];
-		accelerometer[1] = buffer[2]<<8 | buffer[3];
-		accelerometer[2] = buffer[4]<<8 | buffer[5];
 	}
-	return 0;
+	g_MasterCompletionFlag = false;
+
+	accelerometer[0] = buffer[0]<<8 | buffer[1];
+	accelerometer[1] = buffer[2]<<8 | buffer[3];
+	accelerometer[2] = buffer[4]<<8 | buffer[5];
+	//adjustment of accelerometer value from being in 2 g sensitivity mode
+	float x_value = 0;
+	float y_value = 0;
+	float z_value = 0;
+	x_value = accelerometer[0]*.000244;
+	y_value = accelerometer[1]*.000244;
+	z_value = accelerometer[2]*.000244;
 }
